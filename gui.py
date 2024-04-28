@@ -60,7 +60,6 @@ class SpreadsheetApp(tk.Tk):
                 entry.grid(row=i + 2, column=j + 1)
                 entry.bind('<FocusOut>',
                            lambda e, r=i, c=j: self.cell_updated(r, c, e.widget))  # Bind for updating cell values
-                entry.bind('<Double-1>', lambda e, r=i, c=j: self.show_formula(r, c, e.widget))
 
                 self.entries[(i, j)] = entry
 

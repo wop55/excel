@@ -31,8 +31,10 @@ class Cell:
         # Implementing the observer design pattern to manage dependencies
         # between cells. This allows a cell to notify other dependent cells
         # (subscribers) to update themselves when its value changes.
-        self.subscribers: List['Cell'] = []
+        self.subscribers: List[Cell] = []
+        self.subscriptions: List[Cell] = []
         self.owner_worksheet = worksheet
+
     def subscribe(self, cell: 'Cell') -> None:
         """
         Adds a new cell to the list of subscribers that will be notified when this cell's value changes.
@@ -40,14 +42,30 @@ class Cell:
         if cell not in self.subscribers:
             self.subscribers.append(cell)
 
+    def unsubscribe(self, cell: 'Cell') -> None:
+        if cell in self.subscribers:
+            self.subscribers = [subscriber_cell for subscriber_cell in self.subscribers if subscriber_cell != cell]
+
+    def set(self, value: float, text: str) -> None:
+        self.value = value
+        self.text = text
+
     def insert_text(self, text: str) -> None:
         self.text = text
+
+        # unsubscribe from all my subscriptions
+        for subscription in self.subscriptions:
+            subscription.unsubscribe(self)
+        self.subscriptions = []
+
         if text and text.startswith('='):
             self.value = self.__calculate_expression()
             cell_names = re.findall(r'[A-Za-z]+\d+', self.text) # TODO: fix it to work also for A10
             for cell_name in cell_names:
                 cell = self.owner_worksheet.get_cell_by_reference(cell_name)
-                cell.subscribe(self)
+                if cell not in self.subscriptions:
+                    cell.subscribe(self)
+                    self.subscriptions.append(cell)
         elif is_float(text):
             self.value = float(text)
         else:
@@ -279,8 +297,15 @@ class Workbook:
             worksheet = Worksheet(rows=len(sheet_data), columns=(len(sheet_data[0])))
             for row_index, row in enumerate(sheet_data):
                 for column_index, cell_data in enumerate(row):
-                    cell = Cell(worksheet, cell_data[0], cell_data[1])
-                    worksheet.table[row_index][column_index] = cell
+                    cell = worksheet.table[row_index][column_index] # TODO: implement differently don't access table
+                    cell.set(cell_data[0], cell_data[1])
+                    if cell.text and cell.text.startswith('='):
+                        cell_names = re.findall(r'[A-Za-z]+\d+', cell.text) # TODO: fix it to work also for A10
+                        for cell_name in cell_names:
+                            cell_to_subscribe = worksheet.get_cell_by_reference(cell_name)
+                            if cell_to_subscribe not in cell.subscriptions:
+                                cell_to_subscribe.subscribe(cell)
+                                cell.subscriptions.append(cell_to_subscribe)
             self.sheets[sheet_name] = worksheet
 
     def to_json(self):
