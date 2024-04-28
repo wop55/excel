@@ -65,10 +65,10 @@ class SpreadsheetApp(tk.Tk):
                 self.entries[(i, j)] = entry
 
     def cell_updated(self, row, col, widget):
-        value = widget.get()
+        text = widget.get()
         sheet = self.workbook.get_sheet(self.current_sheet_name)
         cell = sheet.get_cell(row, col)
-        cell.insert_text(value)
+        cell.insert_text(text)
         self.refresh_ui()
 
 
@@ -86,14 +86,7 @@ class SpreadsheetApp(tk.Tk):
         for (row, col), entry in self.entries.items():
             cell = sheet.get_cell(row, col)
             entry.delete(0, tk.END)
-            if cell.value is not None:
-                entry.insert(0, cell.value)
-            elif cell.text is not None:
-                entry.insert(0, cell.text)
-            else:
-                entry.insert(0, "")
-
-
+            entry.insert(0, cell.get_display_value())
 
     def create_new_sheet(self):
         new_sheet_name = simpledialog.askstring("New Sheet", "Enter the name of the new sheet:")
@@ -107,9 +100,13 @@ class SpreadsheetApp(tk.Tk):
         if file_path:
             with open(file_path, 'r') as file:
                 data = json.load(file)
-                self.workbook = Workbook.load_from_json(data)  # טעינת הנתונים למחלקת Workbook
+                self.workbook.load_from_json(data)  # טעינת הנתונים למחלקת Workbook
                 self.current_sheet_name = next(iter(self.workbook.sheets))  # בחירת הדף הראשון להצגה
+                print(self.workbook.sheets[self.current_sheet_name].table[0][0].text)
+
                 self.create_grid()  # יצירת הגריד עם הנתונים החדשים
+                self.refresh_ui()
+
 
     def save_workbook(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".json")

@@ -32,7 +32,6 @@ class Cell:
         # between cells. This allows a cell to notify other dependent cells
         # (subscribers) to update themselves when its value changes.
         self.subscribers: List['Cell'] = []
-        self.formula: Optional[str] = None
         self.owner_worksheet = worksheet
     def subscribe(self, cell: 'Cell') -> None:
         """
@@ -50,13 +49,22 @@ class Cell:
                 cell = self.owner_worksheet.get_cell_by_reference(cell_name)
                 cell.subscribe(self)
         elif is_float(text):
-            value = float(text)
+            self.value = float(text)
         else:
-            value = None
+            self.value = None
         self.notify_subscribers()
 
     def get_display_value(self):
-        return str(self.value) if self.value is not None else ""
+        if self.value is not None:
+            if self.value.is_integer():
+                # values like "5.0" display as "5"
+                return str(int(self.value))
+            else:
+                return str(self.value)
+        elif self.text is not None:
+            return self.text
+        else:
+            return ""
 
     def get_value(self) -> float:
         """
@@ -64,10 +72,10 @@ class Cell:
         """
         return self.value
 
-    def __calculate_expression(self) -> None:
+    def __calculate_expression(self) -> float:
         # Find all cell names in the expression
         if self.text is None:
-            return
+            return None
         expression = self.text[1:]
         cell_names = re.findall(r'[A-Za-z]+\d+', expression) # fix it to work also for A10
         modified_expression = expression
@@ -116,10 +124,10 @@ class Worksheet:
     it consists of a grid of cells organized in rows and columns where users
     can enter, calculate, manipulate, and analyze data.
     """
-    def __init__(self) -> None:
+    def __init__(self, rows: int = 10, columns: int = 10) -> None:
         # Setting default dimensions
-        self.num_rows = 10
-        self.num_columns = 10
+        self.num_rows = rows
+        self.num_columns = columns
 
         # Creating a sheet as a 2D list consisting of Cell objects
         self.table = []
@@ -266,19 +274,14 @@ class Workbook:
         else:
             print(f"Sheet '{sheet_name}' does not exist.")
 
-    @staticmethod
-    def load_from_json(data):
-        workbook = Workbook()
+    def load_from_json(self, data):
         for sheet_name, sheet_data in data.items():
-            worksheet = Worksheet()
-            for row_data in sheet_data:
-                row = []
-                for cell_data in row_data:
-                    cell = Cell(workbook, cell_data[0], cell_data[1])
-                    row.append(cell)
-                worksheet.table.append(row)
-            workbook.sheets[sheet_name] = worksheet
-        return workbook
+            worksheet = Worksheet(rows=len(sheet_data), columns=(len(sheet_data[0])))
+            for row_index, row in enumerate(sheet_data):
+                for column_index, cell_data in enumerate(row):
+                    cell = Cell(worksheet, cell_data[0], cell_data[1])
+                    worksheet.table[row_index][column_index] = cell
+            self.sheets[sheet_name] = worksheet
 
     def to_json(self):
         # Convert the entire workbook to a JSON-serializable dictionary
