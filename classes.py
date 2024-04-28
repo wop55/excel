@@ -9,6 +9,14 @@ import statistics
 import json
 
 
+def is_float(string: str):
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False
+
+
 # Cell class
 class Cell:
     """
@@ -17,9 +25,9 @@ class Cell:
     the equals sign "=" at the beginning of writing in the cell). cells are
     referenced by their column letter and row number (e.g. A1, B10).
     """
-    def __init__(self, worksheet) -> None:
-        self.value: Optional[float] = None
-        self.txt: Optional[str] = None
+    def __init__(self, worksheet, value=None, text=None) -> None:
+        self.value: Optional[float] = value
+        self.text: Optional[str] = text
         # Implementing the observer design pattern to manage dependencies
         # between cells. This allows a cell to notify other dependent cells
         # (subscribers) to update themselves when its value changes.
@@ -33,23 +41,19 @@ class Cell:
         if cell not in self.subscribers:
             self.subscribers.append(cell)
 
-    def set_value(self, value: Union[float, str]) -> None:
-        """
-        Sets the numerical value of the cell and notifies subscribers about the change.
-        """
-        if isinstance(value, str) and value.startswith('='):
-            self.formula = value[1:]
-            self.__calculate_expression()
-            cell_names = re.findall(r'[A-Za-z]+\d+', self.formula) # fix it to work also for A10
+    def insert_text(self, text: str) -> None:
+        self.text = text
+        if text and text.startswith('='):
+            self.value = self.__calculate_expression()
+            cell_names = re.findall(r'[A-Za-z]+\d+', self.text) # TODO: fix it to work also for A10
             for cell_name in cell_names:
                 cell = self.owner_worksheet.get_cell_by_reference(cell_name)
                 cell.subscribe(self)
-
-        elif self.value != value:
-                self.value = value
-
+        elif is_float(text):
+            value = float(text)
+        else:
+            value = None
         self.notify_subscribers()
-
 
     def get_display_value(self):
         return str(self.value) if self.value is not None else ""
@@ -62,9 +66,9 @@ class Cell:
 
     def __calculate_expression(self) -> None:
         # Find all cell names in the expression
-        if self.formula is None:
+        if self.text is None:
             return
-        expression = self.formula
+        expression = self.text[1:]
         cell_names = re.findall(r'[A-Za-z]+\d+', expression) # fix it to work also for A10
         modified_expression = expression
         
@@ -91,7 +95,7 @@ class Cell:
             raise ValueError(f"Failed to evaluate expression '{modified_expression}'. Error: {str(e)}")
 
         # Set the result in the target cell and trigger updates to subscribers
-        self.set_value(result)
+        return result
 
     def notify_subscribers(self) -> None:
         """
@@ -101,7 +105,8 @@ class Cell:
             subscriber.update()
 
     def update(self):
-        self.__calculate_expression()
+        value = self.__calculate_expression()
+        self.value = value
 
 
 
@@ -269,8 +274,7 @@ class Workbook:
             for row_data in sheet_data:
                 row = []
                 for cell_data in row_data:
-                    cell = Cell()
-                    cell.set_value(cell_data.get('value', None))
+                    cell = Cell(workbook, cell_data[0], cell_data[1])
                     row.append(cell)
                 worksheet.table.append(row)
             workbook.sheets[sheet_name] = worksheet
@@ -284,9 +288,9 @@ class Workbook:
             for row in worksheet.table:
                 row_data = []
                 for cell in row:
-                    cell_data = {
-                        'value': cell.value,
-                    }
+                    cell_data = [
+                        cell.value, cell.text
+                    ]
                     row_data.append(cell_data)
                 sheet_data.append(row_data)
             workbook_data[sheet_name] = sheet_data

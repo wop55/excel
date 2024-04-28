@@ -68,18 +68,9 @@ class SpreadsheetApp(tk.Tk):
         value = widget.get()
         sheet = self.workbook.get_sheet(self.current_sheet_name)
         cell = sheet.get_cell(row, col)
-        if value.startswith("="):
-            # שמירת הנוסחה בתא
-            cell.set_value(value) 
-            try:
-                self.refresh_ui()
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to calculate expression: {str(e)}")
-                widget.delete(0, tk.END)  # איפוס התא אם יש שגיאה בחישוב
-        else:
-            # שמירת ערך מספרי ואיפוס הנוסחה
-            cell.set_value(value)  # ניצול הפונקציה set_value לעדכון הערך
-            self.refresh_ui()
+        cell.insert_text(value)
+        self.refresh_ui()
+
 
     def show_formula(self, row, col, widget):
         cell = self.workbook.get_sheet(self.current_sheet_name).get_cell(row, col)
@@ -95,7 +86,14 @@ class SpreadsheetApp(tk.Tk):
         for (row, col), entry in self.entries.items():
             cell = sheet.get_cell(row, col)
             entry.delete(0, tk.END)
-            entry.insert(0, cell.value if cell.value is not None else "")
+            if cell.value is not None:
+                entry.insert(0, cell.value)
+            elif cell.text is not None:
+                entry.insert(0, cell.text)
+            else:
+                entry.insert(0, "")
+
+
 
     def create_new_sheet(self):
         new_sheet_name = simpledialog.askstring("New Sheet", "Enter the name of the new sheet:")
